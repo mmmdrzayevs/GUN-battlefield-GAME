@@ -3,4 +3,5 @@
 ---
 
 Want to collab on this project?<br>
-Connect here: 𝕏 [@warrioraashuu](https://x.com/warrioraashuu) or [www.aashuu.me](https://www.aashuu.me)
+Connect here: Said Mammadrzayev 
+  Instagram:   mmdrzyv_s
