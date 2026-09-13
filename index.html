@@ -1,0 +1,829 @@
+<html lang="en">
+<head>
+<title>Battlefield</title>
+<link rel="icon" type="image/png" href="icon.png"/>
+<meta name="title" content="Battlefield"></meta>
+<meta name="author" content="aashuu"></meta>
+<meta name="description" content="Defend. Destroy. Dominate. - A run and gun roguelike platformer with destructible environments"></meta>
+<meta name=viewport content='width=device-width,initial-scale=1,user-scalable=0,viewport-fit=cover'>
+<meta charset=utf-8>
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://battlefield.aashuu.me/">
+<meta property="og:title" content="Battlefield">
+<meta property="og:description" content="Defend. Destroy. Dominate. - A run and gun roguelike platformer with destructible environments">
+<meta property="og:image" content="https://battlefield.aashuu.me/og-image.png">
+<meta property="og:image:width" content="1672">
+<meta property="og:image:height" content="941">
+<meta property="og:image:alt" content="Battlefield game preview">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:url" content="https://battlefield.aashuu.me/">
+<meta name="twitter:title" content="Battlefield">
+<meta name="twitter:description" content="Defend. Destroy. Dominate. - A run and gun roguelike platformer with destructible environments">
+<meta name="twitter:image" content="https://battlefield.aashuu.me/og-image.png">
+
+<style>
+/* ===================================================================
+   UI overlay system - sits on top of the game canvas (which the engine
+   centers via position:absolute;top:50%;left:50%). Purely additive:
+   the canvas/game rendering itself is completely untouched by this.
+   =================================================================== */
+
+* { box-sizing:border-box; }
+
+.ui-overlay
+{
+    position:fixed; inset:0; z-index:100;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.72);
+    font-family:'Arial',sans-serif; color:#fff;
+    opacity:0; pointer-events:none;
+    transition:opacity .25s ease;
+}
+.ui-overlay.active { opacity:1; pointer-events:auto; }
+
+.ui-panel
+{
+    min-width:340px; max-width:92vw;
+    padding:36px 44px;
+    background:linear-gradient(160deg,#1b1b22,#0c0c10);
+    border:1px solid #3a3a46;
+    border-radius:10px;
+    box-shadow:0 20px 60px rgba(0,0,0,.6);
+    text-align:center;
+    transform:translateY(24px) scale(.97);
+    opacity:0;
+    transition:transform .3s cubic-bezier(.2,.8,.2,1), opacity .3s ease;
+}
+.ui-overlay.active .ui-panel { transform:translateY(0) scale(1); opacity:1; }
+
+.ui-title
+{
+    font-family:Impact,'Arial Narrow',sans-serif;
+    letter-spacing:2px;
+    font-size:44px;
+    margin:0 0 6px;
+    text-shadow:0 0 18px rgba(255,120,40,.5);
+    color:#fff;
+}
+.ui-title.danger { text-shadow:0 0 18px rgba(255,40,40,.7); color:#ff5555; }
+.ui-title.victory { text-shadow:0 0 18px rgba(80,255,120,.6); color:#7dffa0; }
+.ui-subtitle { margin:0 0 22px; color:#999; font-size:13px; letter-spacing:1px; }
+.ui-stats-badge
+{
+    display:inline-block; margin:0 0 22px;
+    padding:5px 14px; border-radius:20px;
+    background:rgba(255,138,42,.1); border:1px solid rgba(255,138,42,.35);
+    color:#ffb84a; font-size:12px; letter-spacing:.5px;
+}
+
+.ui-stats { margin:14px 0 26px; text-align:left; display:inline-block; }
+.ui-stats div { font-size:15px; padding:3px 0; color:#ddd; display:flex; justify-content:space-between; gap:40px; }
+.ui-stats span:last-child { color:#ffd54a; font-weight:bold; }
+
+.ui-buttons { display:flex; flex-direction:column; gap:10px; }
+
+.ui-btn
+{
+    position:relative;
+    display:block; width:100%;
+    padding:13px 20px;
+    font-family:Arial,sans-serif; font-size:15px; font-weight:bold; letter-spacing:1.5px;
+    color:#eee;
+    background:#232330;
+    border:1px solid #40404f;
+    border-radius:6px;
+    cursor:pointer;
+    outline:none;
+    transition:background .15s ease, transform .1s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.ui-btn:hover:not(:disabled)
+{
+    background:#3a3a4d;
+    border-color:#ff8a2a;
+    transform:translateY(-1px);
+}
+.ui-btn:active:not(:disabled)
+{
+    transform:translateY(0) scale(.97);
+    background:#20202a;
+}
+.ui-btn:focus-visible
+{
+    border-color:#ffb84a;
+    box-shadow:0 0 0 3px rgba(255,150,40,.35);
+}
+.ui-btn:disabled
+{
+    color:#666;
+    background:#1a1a20;
+    border-color:#2a2a33;
+    cursor:not-allowed;
+}
+.ui-btn.primary { background:#a8390f; border-color:#ff7a2a; }
+.ui-btn.primary:hover:not(:disabled) { background:#c94512; }
+
+/* settings */
+.ui-row { display:flex; align-items:center; justify-content:space-between; gap:16px; margin:14px 0; text-align:left; }
+.ui-row label { font-size:14px; color:#ccc; }
+.ui-row input[type=range] { width:160px; accent-color:#ff8a2a; }
+
+/* controls list */
+.ui-controls-list { text-align:left; font-size:13px; color:#ccc; margin:0 0 22px; max-height:50vh; overflow:auto; }
+.ui-controls-list div { display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #26262f; gap:24px; }
+.ui-controls-list span:last-child { color:#ffb84a; font-family:monospace; }
+
+@media (max-width:480px)
+{
+    .ui-panel { padding:26px 20px; min-width:0; width:92vw; }
+    .ui-title { font-size:32px; }
+}
+
+/* ===================================================================
+   persistence / settings / achievements additions - purely additive to
+   the overlay system above, same visual language (dark panels, orange
+   accent) so nothing looks bolted-on
+   =================================================================== */
+
+.ui-row-divider { height:1px; background:#2a2a33; margin:14px 0; }
+
+.ui-select
+{
+    background:#232330; color:#eee; border:1px solid #40404f; border-radius:6px;
+    padding:6px 10px; font-family:Arial,sans-serif; font-size:13px; font-weight:bold;
+    letter-spacing:.5px; cursor:pointer; outline:none;
+}
+.ui-select:hover { border-color:#ff8a2a; }
+
+.ui-panel-wide { min-width:420px; }
+@media (max-width:480px) { .ui-panel-wide { min-width:0; } }
+
+/* ===================================================================
+   settings panel refresh: grouped section cards with icon headers, and
+   a custom-styled range slider (track + glowing thumb) replacing the
+   plain browser default
+   =================================================================== */
+
+.ui-section
+{
+    background:rgba(255,255,255,.025);
+    border:1px solid rgba(255,255,255,.06);
+    border-radius:10px;
+    padding:14px 16px 4px;
+    margin-bottom:14px;
+    text-align:left;
+}
+.ui-section-title
+{
+    display:flex; align-items:center; gap:8px;
+    font-size:11px; font-weight:bold; letter-spacing:1.5px;
+    color:#ff9c4a; text-transform:uppercase;
+    margin-bottom:6px;
+}
+.ui-section-title .ui-section-icon { font-size:14px; letter-spacing:0; }
+.ui-section .ui-row:first-of-type { margin-top:10px; }
+
+.ui-row input[type=range]
+{
+    -webkit-appearance:none; appearance:none;
+    width:160px; height:6px; border-radius:4px;
+    background:linear-gradient(90deg,#ff8a2a var(--fill,50%),#33333e var(--fill,50%));
+    outline:none; cursor:pointer;
+}
+.ui-row input[type=range]::-webkit-slider-thumb
+{
+    -webkit-appearance:none; appearance:none;
+    width:18px; height:18px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%,#ffcf8a,#ff8a2a 70%);
+    border:2px solid #fff3e6;
+    box-shadow:0 0 8px rgba(255,138,42,.75), 0 2px 4px rgba(0,0,0,.4);
+    transition:transform .12s ease;
+}
+.ui-row input[type=range]:active::-webkit-slider-thumb { transform:scale(1.15); }
+.ui-row input[type=range]::-moz-range-track { background:#33333e; height:6px; border-radius:4px; }
+.ui-row input[type=range]::-moz-range-progress { background:#ff8a2a; height:6px; border-radius:4px; }
+.ui-row input[type=range]::-moz-range-thumb
+{
+    width:16px; height:16px; border-radius:50%; border:2px solid #fff3e6;
+    background:radial-gradient(circle at 35% 30%,#ffcf8a,#ff8a2a 70%);
+    box-shadow:0 0 8px rgba(255,138,42,.75);
+}
+
+/* ===================================================================
+   custom toggle switches - domino / light bulb / power button designs
+   =================================================================== */
+
+/* --- toggle 1: domino fall (used for a single standalone toggle, e.g. Mute) --- */
+.tg-dom { display:inline-block; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.tg-dom input { position:absolute; opacity:0; pointer-events:none; }
+.tg-dom-tk
+{
+    position:relative; display:inline-flex; align-items:flex-end; justify-content:space-between;
+    width:64px; height:26px; padding:0 4px 3px;
+    border-radius:6px;
+    background:linear-gradient(180deg,#10131a,#04060a);
+    border:1px solid rgba(255,255,255,.07);
+    box-shadow:inset 0 1px 2px rgba(0,0,0,.5);
+    overflow:hidden;
+}
+.tg-dom-line
+{
+    position:absolute; left:0; right:0; bottom:2px; height:2px;
+    background:linear-gradient(90deg,#5cffb6,#23d3ff,#7c5cff);
+    opacity:0; transition:opacity .35s .5s;
+}
+.tg-dom-piece
+{
+    position:relative; width:9px; height:16px; border-radius:2px;
+    background:linear-gradient(180deg,#cfd4e0,#9aa0ad);
+    border:1px solid rgba(0,0,0,.3);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.45), 0 2px 3px rgba(0,0,0,.4);
+    transform-origin:bottom right;
+    transition:transform .3s cubic-bezier(.5,0,.4,1.2), background .3s;
+}
+.tg-dom input:checked + .tg-dom-tk .tg-dom-line { opacity:1; }
+.tg-dom input:checked + .tg-dom-tk .tg-dom-piece:nth-child(2) { transform:rotate(75deg); transition-delay:.03s; background:linear-gradient(180deg,#9affc5,#4ad28c); }
+.tg-dom input:checked + .tg-dom-tk .tg-dom-piece:nth-child(3) { transform:rotate(75deg); transition-delay:.13s; background:linear-gradient(180deg,#7ec5ff,#23a8d0); }
+.tg-dom input:checked + .tg-dom-tk .tg-dom-piece:nth-child(4) { transform:rotate(75deg); transition-delay:.23s; background:linear-gradient(180deg,#b89eff,#7c5cff); }
+.tg-dom input:checked + .tg-dom-tk .tg-dom-piece:nth-child(5) { transform:rotate(75deg); transition-delay:.33s; background:linear-gradient(180deg,#ff9bbb,#e83a64); }
+.tg-dom input:focus-visible + .tg-dom-tk { outline:2px solid #5cffb6; outline-offset:3px; }
+
+/* --- toggle 2: light bulb (used for the grouped feel/juice toggles) --- */
+.tg-bulb { display:inline-block; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.tg-bulb input { position:absolute; opacity:0; pointer-events:none; }
+.tg-bulb-body
+{
+    position:relative; display:grid; place-items:center;
+    width:42px; height:46px; border-radius:11px;
+    background:linear-gradient(180deg,#10131a,#04060a);
+    border:1px solid rgba(255,255,255,.06);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+}
+.tg-bulb-halo
+{
+    position:absolute; top:12px; left:50%; width:58px; height:58px;
+    transform:translateX(-50%); border-radius:50%;
+    background:radial-gradient(circle,rgba(255,209,102,.55),rgba(255,209,102,0) 65%);
+    opacity:0; transition:opacity .5s; pointer-events:none;
+}
+.tg-bulb-glass { fill:rgba(255,255,255,.04); stroke:rgba(255,255,255,.18); stroke-width:1.4; transition:fill .45s, stroke .45s; }
+.tg-bulb-fil { stroke:#5a606b; stroke-width:1.6; fill:none; transition:stroke .45s, filter .45s; }
+.tg-bulb input:checked + .tg-bulb-body .tg-bulb-halo { opacity:1; }
+.tg-bulb input:checked + .tg-bulb-body .tg-bulb-glass { fill:rgba(255,209,102,.18); stroke:rgba(255,209,102,.6); }
+.tg-bulb input:checked + .tg-bulb-body .tg-bulb-fil { stroke:#ffd166; filter:drop-shadow(0 0 4px rgba(255,209,102,.95)); }
+.tg-bulb:active .tg-bulb-svg { transform:scale(.95); }
+.tg-bulb input:focus-visible + .tg-bulb-body { outline:2px solid #ffd166; outline-offset:3px; border-radius:13px; }
+
+/* --- toggle 3: power button (used for a single standalone toggle, e.g. Low Graphics Mode) --- */
+.tg-pwr { display:inline-block; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.tg-pwr input { position:absolute; opacity:0; pointer-events:none; }
+.tg-pwr-body
+{
+    position:relative; display:grid; place-items:center;
+    width:38px; height:38px; border-radius:50%;
+    background:radial-gradient(circle at 35% 28%,#3a3f4a,#0a0d14 80%);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.15), inset 0 -2px 4px rgba(0,0,0,.55), 0 10px 18px -8px rgba(0,0,0,.6);
+    color:#ff6b6b;
+    transition:color .35s, box-shadow .45s, border-color .35s;
+}
+.tg-pwr-i { filter:drop-shadow(0 0 4px rgba(255,107,107,.55)); transition:filter .45s; }
+.tg-pwr input:checked + .tg-pwr-body
+{
+    color:#5cffb6; border-color:rgba(92,255,182,.25);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.15), inset 0 -2px 4px rgba(0,0,0,.55), 0 10px 18px -8px rgba(0,0,0,.6), 0 0 22px -2px rgba(92,255,182,.5);
+}
+.tg-pwr input:checked + .tg-pwr-body .tg-pwr-i { filter:drop-shadow(0 0 6px rgba(92,255,182,.85)); }
+.tg-pwr:active .tg-pwr-body { transform:scale(.95); }
+.tg-pwr input:focus-visible + .tg-pwr-body { outline:2px solid currentColor; outline-offset:4px; }
+
+/* achievements list */
+.achievements-list { text-align:left; margin:0 0 22px; max-height:55vh; overflow:auto; }
+.achievement-row
+{
+    display:flex; align-items:center; gap:14px;
+    padding:10px 12px; margin-bottom:8px;
+    background:#17171d; border:1px solid #2a2a33; border-radius:8px;
+    opacity:.45; filter:grayscale(1);
+    transition:opacity .3s ease, filter .3s ease, border-color .3s ease;
+}
+.achievement-row.achievement-row-unlocked
+{
+    opacity:1; filter:none;
+    border-color:#ffb84a; background:#211c14;
+}
+.achievement-row-icon
+{
+    flex:none; width:34px; height:34px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:#2a2a33; color:#666; font-size:17px;
+    transition:background .3s ease, color .3s ease;
+}
+.achievement-row-unlocked .achievement-row-icon { background:#ff8a2a; color:#1a1200; }
+.achievement-row-name { font-size:14px; font-weight:bold; letter-spacing:.5px; color:#eee; }
+.achievement-row-desc { font-size:12px; color:#999; margin-top:2px; }
+
+/* achievement unlock toast - fixed top-center popup with slide-down/up + fade animation */
+.achievement-toast
+{
+    position:fixed; top:18px; left:50%;
+    transform:translate(-50%,-140%);
+    z-index:200; pointer-events:none;
+    display:flex; align-items:center; gap:14px;
+    min-width:300px; max-width:92vw;
+    padding:14px 22px;
+    background:linear-gradient(160deg,#2a2110,#181008);
+    border:1px solid #ff8a2a;
+    border-radius:10px;
+    box-shadow:0 10px 40px rgba(0,0,0,.55), 0 0 24px rgba(255,138,42,.25);
+    font-family:Arial,sans-serif; color:#fff;
+    opacity:0;
+    transition:transform .45s cubic-bezier(.2,.9,.25,1.2), opacity .3s ease;
+}
+.achievement-toast.achievement-toast-show { transform:translate(-50%,0); opacity:1; }
+.achievement-toast.achievement-toast-hide { transform:translate(-50%,-140%); opacity:0; }
+.achievement-toast-icon
+{
+    flex:none; width:38px; height:38px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:#ff8a2a; color:#1a1200; font-size:19px;
+    animation:achievement-icon-pop .5s cubic-bezier(.2,.9,.25,1.4);
+}
+@keyframes achievement-icon-pop
+{
+    0% { transform:scale(0); }
+    60% { transform:scale(1.25); }
+    100% { transform:scale(1); }
+}
+.achievement-toast-label { font-size:10px; letter-spacing:1.5px; color:#ffb84a; }
+.achievement-toast-name { font-size:16px; font-weight:bold; letter-spacing:1px; margin:2px 0; }
+.achievement-toast-desc { font-size:12px; color:#ccc; }
+
+/* ===================================================================
+   mobile / touch controls - built entirely in JS (appMobileControls.js),
+   this is just their look. Sits below the .ui-overlay system (z-index
+   50 vs 100) and is hidden by default; toggled visible only during
+   actual gameplay by hooking pauseGame()/resumeGame().
+   =================================================================== */
+
+.mobile-controls
+{
+    position:fixed; inset:0; z-index:50;
+    pointer-events:none;
+    opacity:0; visibility:hidden;
+    transition:opacity .2s ease;
+    -webkit-user-select:none; user-select:none;
+    font-family:Arial,sans-serif; font-weight:bold; letter-spacing:.5px;
+    color:#fff;
+}
+.mobile-controls.mobile-controls-visible { opacity:1; visibility:visible; }
+
+.mc-joystick-base
+{
+    position:absolute;
+    left:calc(22px + env(safe-area-inset-left));
+    bottom:calc(22px + env(safe-area-inset-bottom));
+    width:112px; height:112px; border-radius:50%;
+    background:rgba(255,255,255,.08);
+    border:2px solid rgba(255,255,255,.25);
+    touch-action:none; pointer-events:auto;
+}
+.mc-joystick-stick
+{
+    position:absolute; top:50%; left:50%;
+    width:52px; height:52px; margin:-26px 0 0 -26px;
+    border-radius:50%;
+    background:rgba(255,255,255,.3);
+    border:2px solid rgba(255,255,255,.5);
+    pointer-events:none;
+    transition:transform .05s linear;
+}
+
+.mc-button
+{
+    position:absolute;
+    display:flex; align-items:center; justify-content:center;
+    border-radius:50%;
+    background:rgba(30,30,38,.55);
+    border:2px solid rgba(255,255,255,.3);
+    font-size:11px; color:#eee;
+    touch-action:none; pointer-events:auto;
+    transition:background .1s ease, transform .1s ease, border-color .1s ease;
+}
+.mc-button.mc-button-active
+{
+    background:rgba(255,138,42,.55);
+    border-color:#ff8a2a;
+    transform:scale(.92);
+}
+
+/* right side: JUMP (blue, rightmost) + DOWN (red, directly to its left) - replace the old
+   right stick with two dedicated buttons, same bottom-right footprint the stick used to have */
+.mc-btn-jump, .mc-btn-down
+{
+    bottom:calc(22px + env(safe-area-inset-bottom));
+    width:74px; height:74px; font-size:12px;
+}
+.mc-btn-jump
+{
+    right:calc(18px + env(safe-area-inset-right));
+    background:rgba(30,90,190,.55); border-color:#4a9cff;
+}
+.mc-btn-jump.mc-button-active { background:rgba(40,110,220,.8); }
+.mc-btn-down
+{
+    right:calc(100px + env(safe-area-inset-right));
+    background:rgba(190,40,40,.55); border-color:#ff5a4a;
+}
+.mc-btn-down.mc-button-active { background:rgba(220,55,55,.8); }
+
+/* Action cluster: FIRE anchors the bottom-right corner as before; the four secondary
+   actions are arranged in a precise, evenly-spaced quarter-circle arc around it (each 30
+   degrees apart, same size) instead of the old ad-hoc scattered layout - and each gets its
+   own themed accent color so they're distinguishable at a glance, the same way FIRE/JUMP/
+   DOWN already are. */
+.mc-action-cluster
+{
+    position:absolute;
+    right:calc(18px + env(safe-area-inset-right));
+    bottom:calc(128px + env(safe-area-inset-bottom));
+    width:165px; height:165px;
+}
+.mc-action-cluster .mc-btn-shoot
+{
+    width:76px; height:76px; right:0; bottom:0;
+    font-size:13px;
+    background:rgba(168,57,15,.55); border-color:#ff7a2a;
+}
+.mc-action-cluster .mc-btn-shoot.mc-button-active { background:rgba(201,69,18,.75); }
+
+.mc-action-cluster .mc-btn-reload,
+.mc-action-cluster .mc-btn-grenade,
+.mc-action-cluster .mc-btn-sprint,
+.mc-action-cluster .mc-btn-dash
+{ width:54px; height:54px; font-size:10px; }
+
+.mc-action-cluster .mc-btn-reload  { right:11px;  bottom:103px; background:rgba(40,55,95,.55);  border-color:#6a8cff; }
+.mc-action-cluster .mc-btn-grenade { right:57px;  bottom:91px;  background:rgba(72,80,18,.55);  border-color:#c7de4a; }
+.mc-action-cluster .mc-btn-sprint  { right:91px;  bottom:57px;  background:rgba(18,72,42,.55);  border-color:#4ade80; }
+.mc-action-cluster .mc-btn-dash    { right:103px; bottom:11px;  background:rgba(62,20,85,.55);  border-color:#c084fc; }
+/* explicit pressed-state per button (rather than relying on the generic .mc-button-active
+   cascade, which would otherwise flash every one of these orange on press) */
+.mc-action-cluster .mc-btn-reload.mc-button-active  { background:rgba(70,90,150,.8); transform:scale(.9); }
+.mc-action-cluster .mc-btn-grenade.mc-button-active { background:rgba(110,122,28,.8); transform:scale(.9); }
+.mc-action-cluster .mc-btn-sprint.mc-button-active  { background:rgba(28,110,64,.8); transform:scale(.9); }
+.mc-action-cluster .mc-btn-dash.mc-button-active    { background:rgba(95,30,125,.8); transform:scale(.9); }
+
+/* top-left, stacked under the pause button - deliberately NOT top-right, since the game's
+   own OBJECTIVE panel (canvas-drawn, see drawObjectivePanel() in app.js) lives there */
+.mc-weapon-row
+{
+    position:absolute;
+    left:calc(18px + env(safe-area-inset-left));
+    top:calc(70px + env(safe-area-inset-top));
+    display:flex; gap:8px;
+}
+.mc-weapon-row .mc-btn-weapon
+{
+    position:static;
+    width:40px; height:40px; border-radius:9px;
+    font-size:15px; font-weight:bold;
+}
+/* per-weapon accent, matching order: 1 Pistol, 2 Shotgun, 3 Rifle, 4 Heavy */
+.mc-weapon-pistol  { border-color:#c7cdd6; }
+.mc-weapon-shotgun { border-color:#e2984a; }
+.mc-weapon-rifle   { border-color:#4ade80; }
+.mc-weapon-heavy   { border-color:#ff5a4a; }
+/* whichever weapon is actually equipped right now stands out clearly regardless of theme */
+.mc-btn-weapon.mc-weapon-equipped
+{
+    background:rgba(255,255,255,.22);
+    box-shadow:0 0 0 2px rgba(255,255,255,.55), 0 0 12px rgba(255,255,255,.35);
+    transform:scale(1.08);
+}
+
+.mc-btn-pause
+{
+    left:calc(18px + env(safe-area-inset-left));
+    top:calc(18px + env(safe-area-inset-top));
+    width:42px; height:42px; font-size:13px;
+    letter-spacing:0;
+}
+
+/* utility row: fullscreen toggle + the distinctive "scout" map-view button, stacked under
+   the weapon row */
+.mc-btn-fullscreen
+{
+    position:absolute;
+    left:calc(18px + env(safe-area-inset-left));
+    top:calc(118px + env(safe-area-inset-top));
+    width:40px; height:40px; border-radius:9px;
+    font-size:16px;
+}
+.mc-btn-mapview
+{
+    position:absolute;
+    left:calc(66px + env(safe-area-inset-left));
+    top:calc(118px + env(safe-area-inset-top));
+    width:auto; height:40px; padding:0 14px; border-radius:20px;
+    font-size:11px; letter-spacing:1px;
+    background:linear-gradient(135deg,#0e5a66,#0a2f38);
+    border:2px solid #2fd8e0; color:#8ff5fa;
+}
+.mc-btn-mapview.mc-mapview-active
+{
+    background:linear-gradient(135deg,#12879a,#0e4650);
+    animation:mc-mapview-pulse 1.4s ease-in-out infinite;
+}
+@keyframes mc-mapview-pulse
+{
+    0%, 100% { box-shadow:0 0 10px rgba(47,216,224,.5); }
+    50%      { box-shadow:0 0 22px rgba(47,216,224,.95); }
+}
+
+.mc-landscape-hint
+{
+    position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+    z-index:250;
+    padding:14px 22px;
+    background:rgba(10,10,14,.9);
+    border:1px solid #ff8a2a;
+    border-radius:10px;
+    color:#fff; font-family:Arial,sans-serif; font-size:14px; text-align:center;
+    box-shadow:0 10px 40px rgba(0,0,0,.6);
+    animation:mc-hint-fade .3s ease;
+}
+@keyframes mc-hint-fade { from { opacity:0; transform:translate(-50%,-50%) scale(.9); } to { opacity:1; transform:translate(-50%,-50%) scale(1); } }
+
+@media (max-width:480px)
+{
+    .mc-joystick-base { width:92px; height:92px; }
+    .mc-joystick-stick { width:42px; height:42px; margin:-21px 0 0 -21px; }
+    .mc-btn-jump, .mc-btn-down { width:62px; height:62px; }
+    .mc-btn-down { right:calc(84px + env(safe-area-inset-right)); }
+
+    .mc-action-cluster { width:140px; height:140px; bottom:calc(108px + env(safe-area-inset-bottom)); }
+    .mc-action-cluster .mc-btn-shoot { width:64px; height:64px; }
+    .mc-action-cluster .mc-btn-reload,
+    .mc-action-cluster .mc-btn-grenade,
+    .mc-action-cluster .mc-btn-sprint,
+    .mc-action-cluster .mc-btn-dash { width:44px; height:44px; }
+    .mc-action-cluster .mc-btn-reload  { right:10px; bottom:86px; }
+    .mc-action-cluster .mc-btn-grenade { right:48px; bottom:76px; }
+    .mc-action-cluster .mc-btn-sprint  { right:76px; bottom:48px; }
+    .mc-action-cluster .mc-btn-dash    { right:86px; bottom:10px; }
+}
+
+/* landscape phones: keep the cluster/buttons from creeping too close to the vertical
+   center where the player character usually is */
+@media (max-height:420px) and (orientation:landscape)
+{
+    .mc-joystick-base { bottom:calc(10px + env(safe-area-inset-bottom)); width:90px; height:90px; }
+    .mc-joystick-stick { width:40px; height:40px; margin:-20px 0 0 -20px; }
+    .mc-btn-jump, .mc-btn-down { bottom:calc(10px + env(safe-area-inset-bottom)); width:68px; height:68px; }
+    .mc-btn-down { right:calc(92px + env(safe-area-inset-right)); }
+    .mc-action-cluster { bottom:calc(102px + env(safe-area-inset-bottom)); }
+}
+</style>
+
+
+</head>
+<body>
+<script src=engine/engineUtil.js></script>
+<script src=engine/engineDebug.js></script>
+<script src=engine/engine.js></script>
+<script src=engine/engineObject.js></script>
+<script src=engine/engineWebGL.js></script>
+<script src=engine/engineDraw.js></script>
+<script src=engine/engineInput.js></script>
+<script src=engine/engineAudio.js></script>
+<script src=engine/engineTileLayer.js></script>
+<script src=engine/engineParticle.js></script>
+<script src=appObjects.js></script>
+<script src=appCharacters.js></script>
+<script src=appEffects.js></script>
+<script src=appLevel.js></script>
+<script src=appSave.js></script>
+<script src=appSettings.js></script>
+<script src=appAchievements.js></script>
+<script src=app.js></script>
+
+<!-- ===================================================================
+     UI overlay markup - hidden by default (no .active class), toggled
+     purely via CSS classes from appUI.js. Every button below is wired
+     up in appUI.js; nothing here reaches into the game state directly.
+     =================================================================== -->
+
+<div id=mainMenu class="ui-overlay active">
+    <div class=ui-panel>
+        <h1 class=ui-title>BATTLEFIELD</h1>
+        <p class=ui-subtitle>DEFEND · DESTROY · DOMINATE</p>
+        <div id=mainMenuStats class=ui-stats-badge style="display:none"></div>
+        <div class=ui-buttons>
+            <button class="ui-btn primary" id=btnPlay>PLAY</button>
+            <button class=ui-btn id=btnContinue disabled>CONTINUE</button>
+            <button class=ui-btn id=btnSettingsFromMain>SETTINGS</button>
+            <button class=ui-btn id=btnControlsFromMain>CONTROLS</button>
+            <button class=ui-btn id=btnAchievementsFromMain>ACHIEVEMENTS</button>
+        </div>
+    </div>
+</div>
+
+<div id=pauseMenu class=ui-overlay>
+    <div class=ui-panel>
+        <h1 class=ui-title style="font-size:34px">PAUSED</h1>
+        <div class=ui-buttons>
+            <button class="ui-btn primary" id=btnResume>RESUME</button>
+            <button class=ui-btn id=btnRestart>RESTART</button>
+            <button class=ui-btn id=btnSettingsFromPause>SETTINGS</button>
+            <button class=ui-btn id=btnControlsFromPause>CONTROLS</button>
+            <button class=ui-btn id=btnAchievementsFromPause>ACHIEVEMENTS</button>
+            <button class=ui-btn id=btnMainMenuFromPause>MAIN MENU</button>
+        </div>
+    </div>
+</div>
+
+<div id=settingsPanel class=ui-overlay>
+    <div class=ui-panel>
+        <h1 class=ui-title style="font-size:30px">SETTINGS</h1>
+
+        <div class=ui-section>
+            <div class=ui-section-title><span class=ui-section-icon>&#128266;</span>AUDIO</div>
+            <div class=ui-row>
+                <label for=volumeSlider>Master Volume</label>
+                <input type=range id=volumeSlider min=0 max=100 value=50>
+            </div>
+            <div class=ui-row>
+                <label for=muteToggle>Mute</label>
+                <label class=tg-dom>
+                    <input type=checkbox id=muteToggle>
+                    <span class=tg-dom-tk>
+                        <span class=tg-dom-line></span>
+                        <span class=tg-dom-piece></span>
+                        <span class=tg-dom-piece></span>
+                        <span class=tg-dom-piece></span>
+                        <span class=tg-dom-piece></span>
+                    </span>
+                </label>
+            </div>
+            <div class=ui-row>
+                <label for=sfxVolumeSlider>SFX Volume</label>
+                <input type=range id=sfxVolumeSlider min=0 max=100 value=100>
+            </div>
+            <div class=ui-row>
+                <label for=musicVolumeSlider>Music Volume</label>
+                <input type=range id=musicVolumeSlider min=0 max=100 value=100>
+            </div>
+        </div>
+
+        <div class=ui-section>
+            <div class=ui-section-title><span class=ui-section-icon>&#127918;</span>GAMEPLAY FEEL</div>
+            <div class=ui-row>
+                <label for=screenShakeToggle>Screen Shake</label>
+                <label class=tg-bulb>
+                    <input type=checkbox id=screenShakeToggle checked>
+                    <span class=tg-bulb-body>
+                        <span class=tg-bulb-halo></span>
+                        <svg class=tg-bulb-svg viewBox="0 0 40 50" width=30 height=38>
+                            <path class=tg-bulb-glass d="M20 4c8 0 13 6 13 14 0 5-3 8-5 11-1 1.5-2 3-2 5v3H14v-3c0-2-1-3.5-2-5-2-3-5-6-5-11C7 10 12 4 20 4z" />
+                            <line class=tg-bulb-fil x1=15 y1=22 x2=20 y2=16 stroke-linecap=round />
+                            <line class=tg-bulb-fil x1=20 y1=16 x2=25 y2=22 stroke-linecap=round />
+                            <line class=tg-bulb-fil x1=15 y1=22 x2=25 y2=22 stroke-linecap=round />
+                            <rect x=14 y=40 width=12 height=3 rx=1 fill="#5a606b" />
+                            <rect x=15 y=44 width=10 height=3 rx=1 fill="#3a3f4a" />
+                        </svg>
+                    </span>
+                </label>
+            </div>
+            <div class=ui-row>
+                <label for=cameraEffectsToggle>Camera Effects</label>
+                <label class=tg-bulb>
+                    <input type=checkbox id=cameraEffectsToggle checked>
+                    <span class=tg-bulb-body>
+                        <span class=tg-bulb-halo></span>
+                        <svg class=tg-bulb-svg viewBox="0 0 40 50" width=30 height=38>
+                            <path class=tg-bulb-glass d="M20 4c8 0 13 6 13 14 0 5-3 8-5 11-1 1.5-2 3-2 5v3H14v-3c0-2-1-3.5-2-5-2-3-5-6-5-11C7 10 12 4 20 4z" />
+                            <line class=tg-bulb-fil x1=15 y1=22 x2=20 y2=16 stroke-linecap=round />
+                            <line class=tg-bulb-fil x1=20 y1=16 x2=25 y2=22 stroke-linecap=round />
+                            <line class=tg-bulb-fil x1=15 y1=22 x2=25 y2=22 stroke-linecap=round />
+                            <rect x=14 y=40 width=12 height=3 rx=1 fill="#5a606b" />
+                            <rect x=15 y=44 width=10 height=3 rx=1 fill="#3a3f4a" />
+                        </svg>
+                    </span>
+                </label>
+            </div>
+            <div class=ui-row>
+                <label for=damageNumbersToggle>Damage Numbers</label>
+                <label class=tg-bulb>
+                    <input type=checkbox id=damageNumbersToggle checked>
+                    <span class=tg-bulb-body>
+                        <span class=tg-bulb-halo></span>
+                        <svg class=tg-bulb-svg viewBox="0 0 40 50" width=30 height=38>
+                            <path class=tg-bulb-glass d="M20 4c8 0 13 6 13 14 0 5-3 8-5 11-1 1.5-2 3-2 5v3H14v-3c0-2-1-3.5-2-5-2-3-5-6-5-11C7 10 12 4 20 4z" />
+                            <line class=tg-bulb-fil x1=15 y1=22 x2=20 y2=16 stroke-linecap=round />
+                            <line class=tg-bulb-fil x1=20 y1=16 x2=25 y2=22 stroke-linecap=round />
+                            <line class=tg-bulb-fil x1=15 y1=22 x2=25 y2=22 stroke-linecap=round />
+                            <rect x=14 y=40 width=12 height=3 rx=1 fill="#5a606b" />
+                            <rect x=15 y=44 width=10 height=3 rx=1 fill="#3a3f4a" />
+                        </svg>
+                    </span>
+                </label>
+            </div>
+        </div>
+
+        <div class=ui-section>
+            <div class=ui-section-title><span class=ui-section-icon>&#127912;</span>GRAPHICS</div>
+            <div class=ui-row>
+                <label for=particleQualitySelect>Particle Quality</label>
+                <select id=particleQualitySelect class=ui-select>
+                    <option value=low>Low</option>
+                    <option value=medium>Medium</option>
+                    <option value=high>High</option>
+                </select>
+            </div>
+            <div class=ui-row>
+                <label for=lowGraphicsToggle>Low Graphics Mode</label>
+                <label class=tg-pwr>
+                    <input type=checkbox id=lowGraphicsToggle>
+                    <span class=tg-pwr-body>
+                        <svg class=tg-pwr-i viewBox="0 0 24 24" width=18 height=18>
+                            <path d="M12 3v10" stroke=currentColor stroke-width=2.4 stroke-linecap=round fill=none />
+                            <path d="M6.5 7.5a8 8 0 1 0 11 0" stroke=currentColor stroke-width=2.4 stroke-linecap=round fill=none />
+                        </svg>
+                    </span>
+                </label>
+            </div>
+        </div>
+
+        <div class=ui-section>
+            <div class=ui-section-title><span class=ui-section-icon>&#128433;&#65039;</span>CONTROLS</div>
+            <div class=ui-row>
+                <label for=mouseSensitivitySlider>Mouse Sensitivity</label>
+                <input type=range id=mouseSensitivitySlider min=50 max=200 value=100>
+            </div>
+        </div>
+
+        <div class=ui-buttons style="margin-top:18px">
+            <button class=ui-btn id=btnSettingsBack>BACK</button>
+        </div>
+    </div>
+</div>
+
+<div id=achievementsPanel class=ui-overlay>
+    <div class="ui-panel ui-panel-wide">
+        <h1 class=ui-title style="font-size:30px">ACHIEVEMENTS</h1>
+        <div id=achievementsList class="achievements-list"></div>
+        <div class=ui-buttons>
+            <button class=ui-btn id=btnAchievementsBack>BACK</button>
+        </div>
+    </div>
+</div>
+
+<div id=achievementToastContainer class="achievement-toast"></div>
+
+<div id=controlsPanel class=ui-overlay>
+    <div class=ui-panel>
+        <h1 class=ui-title style="font-size:30px">CONTROLS</h1>
+        <div class=ui-controls-list>
+            <div><span>Move</span><span>Arrows / WASD</span></div>
+            <div><span>Jump</span><span>Up / W</span></div>
+            <div><span>Shoot</span><span>Mouse 1 / Z</span></div>
+            <div><span>Throw Grenade</span><span>Mouse 2 / C</span></div>
+            <div><span>Dash / Dodge</span><span>Mouse 3 / X</span></div>
+            <div><span>Sprint</span><span>Shift</span></div>
+            <div><span>Select Weapon</span><span>G / H / J / K</span></div>
+            <div><span>Reload</span><span>L</span></div>
+            <div><span>Pause</span><span>Esc</span></div>
+        </div>
+        <div class=ui-buttons>
+            <button class=ui-btn id=btnControlsBack>BACK</button>
+        </div>
+    </div>
+</div>
+
+<div id=gameOverScreen class=ui-overlay>
+    <div class=ui-panel>
+        <h1 class="ui-title danger">GAME OVER</h1>
+        <div class=ui-stats id=gameOverStats></div>
+        <div class=ui-buttons>
+            <button class="ui-btn primary" id=btnGameOverRestart>RESTART</button>
+            <button class=ui-btn id=btnGameOverMainMenu>MAIN MENU</button>
+        </div>
+    </div>
+</div>
+
+<div id=victoryScreen class=ui-overlay>
+    <div class=ui-panel>
+        <h1 class="ui-title victory">VICTORY</h1>
+        <div class=ui-stats id=victoryStats></div>
+        <div class=ui-buttons>
+            <button class="ui-btn primary" id=btnNextLevel>NEXT LEVEL</button>
+            <button class=ui-btn id=btnReplay>REPLAY</button>
+        </div>
+    </div>
+</div>
+
+<script src=appUI.js></script>
+<script src=appMobileControls.js></script>
+<script src=appProgressionUI.js></script>
+</body>
+</html>
