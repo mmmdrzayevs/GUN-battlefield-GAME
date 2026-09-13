@@ -827,7 +827,7 @@
 <script src=appMobileControls.js></script>
 <script src=appProgressionUI.js></script>
 <!-- ============================================================
-     İMZA WATERMARK — Variant 5: MİNİMAL XƏTT
+     İMZA WATERMARK — Variant 1: TERMINAL
      "Səid Məmmədrzayev"
      Bu bloku istənilən layihənin sonuna (</body>-dan əvvəl) yapışdır.
      Mövqeyi dəyişmək üçün aşağıdakı POSITION dəyərini dəyiş:
@@ -837,7 +837,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@1,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 
 <style>
   #saidImza {
@@ -845,46 +845,44 @@
     z-index: 999999;
     pointer-events: none;
     user-select: none;
-    padding: 4px 2px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: #0b0f10;
+    border: 1px solid #1f3b30;
+    border-radius: 10px;
+    padding: clamp(6px, 0.5vw, 9px) clamp(10px, 1.2vw, 14px) clamp(6px, 0.5vw, 9px) clamp(9px, 1vw, 11px);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
   }
+
+  #saidImza .dots { display: flex; gap: 5px; margin-right: 10px; }
+  #saidImza .dots span { width: 7px; height: 7px; border-radius: 50%; display: block; }
+  #saidImza .dots span:nth-child(1) { background: #ff5f56; }
+  #saidImza .dots span:nth-child(2) { background: #ffbd2e; }
+  #saidImza .dots span:nth-child(3) { background: #27c93f; }
 
   #saidImza .line {
-    font-family: 'Fraunces', serif;
-    font-style: italic;
-    font-weight: 500;
-    font-size: clamp(0.95rem, 0.85rem + 0.4vw, 1.15rem);
-    color: #e8e4f2;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: clamp(0.78rem, 0.7rem + 0.35vw, 0.92rem);
     white-space: nowrap;
+    line-height: 1;
   }
 
+  #saidImza .prompt { color: #3a7a5c; }
+  #saidImza .text { color: #5df79a; }
+
   #saidImza .cursor {
-    color: #8f86ac;
+    display: inline-block;
+    width: 7px;
+    height: 13px;
+    background: #5df79a;
+    margin-left: 2px;
+    vertical-align: -2px;
     animation: saidBlink 0.8s steps(1) infinite;
   }
 
   @keyframes saidBlink {
     50% { opacity: 0; }
-  }
-
-  #saidImza svg {
-    display: block;
-    margin-top: 2px;
-    overflow: visible;
-  }
-
-  #saidImza path {
-    stroke: #8f86ac;
-    stroke-width: 1.4;
-    fill: none;
-    stroke-dasharray: 220;
-    stroke-dashoffset: 220;
-    animation: saidDrawLine 2.6s ease-in-out infinite;
-  }
-
-  @keyframes saidDrawLine {
-    0%, 8% { stroke-dashoffset: 220; }
-    45%, 60% { stroke-dashoffset: 0; }
-    92%, 100% { stroke-dashoffset: 220; }
   }
 
   /* ---- Mövqe variantları ---- */
@@ -897,8 +895,8 @@
 </style>
 
 <div id="saidImza" class="top-right">
-  <span class="line"><span class="text"></span><span class="cursor">·</span></span>
-  <svg width="180" height="10" viewBox="0 0 180 10"><path d="M2,5 Q45,9 90,4 T178,5" /></svg>
+  <div class="dots"><span></span><span></span><span></span></div>
+  <div class="line"><span class="prompt">~$</span> <span class="text"></span><span class="cursor"></span></div>
 </div>
 
 <script>
@@ -939,6 +937,7 @@
   tick();
 })();
 </script>
+
 
 </body>
 </html>
